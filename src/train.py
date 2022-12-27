@@ -1,6 +1,6 @@
 from pathlib import Path
 import tensorflow as tf
-import pandas as pd
+
 
 # Set the paths to the train and validation directories
 BASE_DIR = Path(__file__).parent.parent
