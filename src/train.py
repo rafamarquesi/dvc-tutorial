@@ -2,14 +2,10 @@ from pathlib import Path
 import tensorflow as tf
 from dvclive.keras import DVCLiveCallback
 from dvc.api import params_show
-from dvclive import Live
 
 # Set the paths to the train and validation directories
 BASE_DIR = Path(__file__).parent.parent
 data_dir = BASE_DIR / "data"
-
-# Initialize a logger
-dvc_logger = Live(dir="evaluation")
 
 # Load the parameters from params.yaml
 params = params_show()["train"]
@@ -29,7 +25,7 @@ train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
 )
 
 train_generator = train_datagen.flow_from_directory(
-    data_dir / "raw" / "train",
+    data_dir / "prepared" / "train",
     target_size=(params["image_width"], params["image_height"]),
     batch_size=params["batch_size"],
     class_mode="categorical",
@@ -38,7 +34,7 @@ train_generator = train_datagen.flow_from_directory(
 # Do the same for test
 test_dataget = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1.0 / 255)
 test_generator = test_dataget.flow_from_directory(
-    data_dir / "raw" / "test",
+    data_dir / "prepared" / "test",
     target_size=(params["image_width"], params["image_height"]),
     batch_size=params["batch_size"],
     class_mode="categorical",
@@ -95,7 +91,7 @@ def main():
             model_path / "model.keras", monitor="val_accuracy", save_best_only=True
         ),
         tf.keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=5),
-        DVCLiveCallback(live=dvc_logger),
+        DVCLiveCallback(dir="evaluation"),
     ]
 
     # Fit the model
