@@ -1,12 +1,26 @@
 from pathlib import Path
 import tensorflow as tf
 from dvclive.keras import DVCLiveCallback
+from dvclive import Live
 
 
 # Set the paths to the train and validation directories
 BASE_DIR = Path(__file__).parent.parent
 data_dir = BASE_DIR / "data"
 
+# Set up the logger
+logger = Live(save_dvc_exp=True)
+
+# Set the parameters
+params = {
+    "image_width": 30,
+    "image_height": 30,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "n_epochs": 10
+}
+
+logger.log_params(params)
 
 # Create an ImageDataGenerator object for the train set with augmentation
 train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
@@ -20,8 +34,10 @@ train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
 
 train_generator = train_datagen.flow_from_directory(
     data_dir / "raw" / "train",
-    target_size=(30, 30),
-    batch_size=32,
+    # target_size=(30, 30),
+    # batch_size=32,
+    target_size=(params['image_width'], params['image_height']),
+    batch_size=params['batch_size'],
     class_mode="categorical",
 )
 
@@ -29,8 +45,10 @@ train_generator = train_datagen.flow_from_directory(
 test_dataget = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1.0 / 255)
 test_generator = test_dataget.flow_from_directory(
     data_dir / "raw" / "test",
-    target_size=(30, 30),
-    batch_size=32,
+    # target_size=(30, 30),
+    # batch_size=32,
+    target_size=(params['image_width'], params['image_height']),
+    batch_size=params['batch_size'],
     class_mode="categorical",
 )
 
@@ -44,15 +62,16 @@ def get_model():
                 filters=32,
                 kernel_size=3,
                 activation="relu",
-                input_shape=(30, 30, 3),
+                # input_shape=(30, 30, 3),
+                input_shape=(params['image_width'], params['image_height'], 3),
             ),
             tf.keras.layers.Conv2D(filters=64, kernel_size=3, activation="relu"),
-            # tf.keras.layers.MaxPooling2D(2, 2),
-            # tf.keras.layers.BatchNormalization(axis=-1),
-            # tf.keras.layers.Conv2D(filters=128, kernel_size=3, activation="relu"),
-            # tf.keras.layers.Conv2D(filters=256, kernel_size=3, activation="relu"),
-            # tf.keras.layers.MaxPooling2D(2, 2),
-            # tf.keras.layers.BatchNormalization(axis=-1),
+            tf.keras.layers.MaxPooling2D(2, 2),
+            tf.keras.layers.BatchNormalization(axis=-1),
+            tf.keras.layers.Conv2D(filters=128, kernel_size=3, activation="relu"),
+            tf.keras.layers.Conv2D(filters=256, kernel_size=3, activation="relu"),
+            tf.keras.layers.MaxPooling2D(2, 2),
+            tf.keras.layers.BatchNormalization(axis=-1),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(512, activation="relu"),
             tf.keras.layers.BatchNormalization(),
@@ -64,7 +83,8 @@ def get_model():
     # Compile the model
     model.compile(
         loss=tf.keras.losses.categorical_crossentropy,
-        optimizer=tf.keras.optimizers.Adam(),
+        # optimizer=tf.keras.optimizers.Adam(),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=params['learning_rate']),
         metrics=["accuracy", tf.keras.metrics.Precision(), tf.keras.metrics.Recall()],
     )
 
@@ -84,17 +104,29 @@ def main():
             model_path / "model.keras", monitor="val_accuracy", save_best_only=True
         ),
         tf.keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=5),
-        DVCLiveCallback(save_dvc_exp=True)
+        # DVCLiveCallback(save_dvc_exp=True),
+        DVCLiveCallback(live=logger),
     ]
     # Fit the model
     history = model.fit(
         train_generator,
         steps_per_epoch=len(train_generator),
-        epochs=10,
+        # epochs=10,
+        epochs=params['n_epochs'],
         validation_data=test_generator,
         callbacks=callbacks,
     )
 
 
 if __name__ == "__main__":
+    import time
+    
+    # Start a timer
+    start = time.time()
+
+    # Run the experiment
     main()
+    
+    # Log the time elapsed
+    elapsed = time.time() - start
+    logger.log_params({"runtime": round(elapsed, 4)})
